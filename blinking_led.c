@@ -1,5 +1,6 @@
 /**
  * Copyright (c) 2022 Nicolai Electronics
+ * Copyright (c) 2019 Ha Thach (tinyusb.org)
  *
  * SPDX-License-Identifier: MIT
  */
