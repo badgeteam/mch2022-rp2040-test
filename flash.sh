@@ -2,4 +2,4 @@
 
 set -e
 
-picotool load build/mch2022_firmware.bin
+picotool load build/mch2022_firmware.uf2

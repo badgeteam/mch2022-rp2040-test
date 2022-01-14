@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 
 set -e
+set -u
+
+INSTALL_PREFIX=$PWD
 
 mkdir -p build
 cd build
 
-cmake ..
+cmake -DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX ..
 make
+make install
