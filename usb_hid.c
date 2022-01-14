@@ -113,7 +113,7 @@ void hid_task(void) {
   if ( board_millis() - start_ms < interval_ms) return; // not enough time
   start_ms += interval_ms;
 
-  uint32_t const btn = board_button_read();
+  uint32_t const btn = false;//board_button_read();
 
   // Remote wakeup
   if ( tud_suspended() && btn )

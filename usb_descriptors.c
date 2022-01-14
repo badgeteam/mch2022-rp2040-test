@@ -16,11 +16,13 @@ char const* string_desc_arr [] = {
   (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
   "Badge.team",                  // 1: Manufacturer
   "MCH2022 badge",               // 2: Product
-  "ESP32 UART",                  // 3: CDC Interface
-  "FPGA UART",                   // 4: CDC Interface
-  "WebUSB UART",                 // 5: WebUSB Interface: serial port
-  "WebUSB FS"                    // 6: WebUSB Interface: filesystem
-  "HID",                         // 7: HID interface
+  "ESP32 console",               // 3: CDC Interface
+  "FPGA console",                // 4: CDC Interface
+  "RP2040 console",              // 5: CDC Interface
+  "WebUSB ESP32 console",        // 6: WebUSB Interface: console
+  "WebUSB control interface"     // 7: WebUSB Interface: control
+  "HID",                         // 8: HID interface
+  "Mass storage"                 // 9: Mass storage interface
 };
 
 enum {
@@ -29,9 +31,11 @@ enum {
     STRING_DESC_PRODUCT,
     STRING_DESC_CDC_0,
     STRING_DESC_CDC_1,
+    STRING_DESC_CDC_2,
     STRING_DESC_WEBUSB_UART,
     STRING_DESC_WEBUSB_FS,
     STRING_DESC_HID,
+    STRING_DESC_MSC,
     STRING_DESC_SERIAL // (Not in the string description array)
 };
 
@@ -119,29 +123,41 @@ uint8_t const * tud_hid_descriptor_report_cb(uint8_t instance) {
 enum {
   ITF_NUM_CDC_0,
   ITF_NUM_CDC_0_DATA,
+  ITF_NUM_VENDOR_0,
+  ITF_NUM_VENDOR_1,
   ITF_NUM_CDC_1,
   ITF_NUM_CDC_1_DATA,
   ITF_NUM_HID,
-  ITF_NUM_VENDOR_UART,
-  ITF_NUM_VENDOR_FS,
+  ITF_NUM_CDC_2,
+  ITF_NUM_CDC_2_DATA,
+  ITF_NUM_MSC,
   ITF_NUM_TOTAL
 };
 
-#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC * TUD_CDC_DESC_LEN + TUD_HID_DESC_LEN + CFG_TUD_VENDOR * TUD_VENDOR_DESC_LEN)
+#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + CFG_TUD_CDC * TUD_CDC_DESC_LEN + TUD_HID_DESC_LEN + CFG_TUD_VENDOR * TUD_VENDOR_DESC_LEN + CFG_TUD_MSC * TUD_MSC_DESC_LEN)
 
-#define EPNUM_CDC_0_NOTIF       0x81 // 1
-#define EPNUM_CDC_0_OUT         0x02
-#define EPNUM_CDC_0_IN          0x82 // 2
-#define EPNUM_CDC_1_NOTIF       0x83 // 3
-#define EPNUM_CDC_1_OUT         0x04 // 4
-#define EPNUM_CDC_1_IN          0x84
-#define EPNUM_HID               0x85 // 5
-#define EPNUM_VENDOR_UART_OUT   0x06 // 6
-#define EPNUM_VENDOR_UART_IN    0x86
-#define EPNUM_VENDOR_FS_OUT     0x07 // 7
-#define EPNUM_VENDOR_FS_IN      0x87
-#define EPNUM_UNUSED_OUT        0x08 // 8
-#define EPNUM_UNUSED_IN         0x88
+#define EPNUM_CDC_0_NOTIF  0x81 // Endpoint 1: CDC serial port for ESP32 console, control
+#define EPNUM_CDC_0_OUT    0x02 // Endpoint 2: CDC serial port for ESP32 console, data
+#define EPNUM_CDC_0_IN     0x82
+
+#define EPNUM_VENDOR_0_OUT 0x03 // Endpoint 3: WebUSB for ESP32 console
+#define EPNUM_VENDOR_0_IN  0x83
+
+#define EPNUM_VENDOR_1_OUT 0x04 // Endpoint 4: WebUSB for control protocol
+#define EPNUM_VENDOR_1_IN  0x84
+
+#define EPNUM_CDC_1_NOTIF  0x85 // Endpoint 5: CDC serial port for FPGA console, control
+#define EPNUM_CDC_1_OUT    0x06 // Endpoint 6: CDC serial port for FPGA console, data
+#define EPNUM_CDC_1_IN     0x86
+
+#define EPNUM_HID          0x87 // Endpoint 7: Composite HID device for emulating keyboard, mouse, joystick and media keys
+
+#define EPNUM_CDC_2_NOTIF  0x88 // Endpoint 8: CDC serial port for RP2040 console, control
+#define EPNUM_CDC_2_OUT    0x09 // Endpoint 9: CDC serial port for RP2040 console, data
+#define EPNUM_CDC_2_IN     0x89
+
+#define EPNUM_MSC_OUT      0x0A // Endpoint 10: Mass storage device
+#define EPNUM_MSC_IN       0x8A
 
 uint8_t const desc_fs_configuration[] = {
     // Config number, interface count, string index, total length, attribute, power in mA
@@ -152,68 +168,25 @@ uint8_t const desc_fs_configuration[] = {
 
     // 2nd CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_1, STRING_DESC_CDC_1, EPNUM_CDC_1_NOTIF, 8, EPNUM_CDC_1_OUT, EPNUM_CDC_1_IN, 64),
+    
+    // 3rd CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_2, STRING_DESC_CDC_2, EPNUM_CDC_2_NOTIF, 8, EPNUM_CDC_2_OUT, EPNUM_CDC_2_IN, 64),
 
     // HID: Interface number, string index, protocol, report descriptor len, EP In address, size & polling interval
     TUD_HID_DESCRIPTOR(ITF_NUM_HID, STRING_DESC_HID, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), EPNUM_HID, CFG_TUD_HID_EP_BUFSIZE, 5),
     
     // WebUSB: Interface number, string index, EP Out & IN address, EP size
-    TUD_VENDOR_DESCRIPTOR(ITF_NUM_VENDOR_UART, STRING_DESC_WEBUSB_UART, EPNUM_VENDOR_UART_OUT, EPNUM_VENDOR_UART_IN, 32),
-    TUD_VENDOR_DESCRIPTOR(ITF_NUM_VENDOR_FS, STRING_DESC_WEBUSB_FS, EPNUM_VENDOR_FS_OUT, EPNUM_VENDOR_FS_IN, 32)
+    TUD_VENDOR_DESCRIPTOR(ITF_NUM_VENDOR_0, STRING_DESC_WEBUSB_UART, EPNUM_VENDOR_0_OUT, EPNUM_VENDOR_0_IN, 32),
+    TUD_VENDOR_DESCRIPTOR(ITF_NUM_VENDOR_1, STRING_DESC_WEBUSB_FS, EPNUM_VENDOR_1_OUT, EPNUM_VENDOR_1_IN, 32),
+    
+    // MSC: Interface number, string index, EP Out & EP In address, EP size
+    TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, STRING_DESC_MSC, EPNUM_MSC_OUT, EPNUM_MSC_IN, 64),
 };
 
-#if TUD_OPT_HIGH_SPEED
-    uint8_t const desc_hs_configuration[] = {
-        // Config number, interface count, string index, total length, attribute, power in mA
-        TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
-
-        // 1st CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
-        TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_0, STRING_DESC_CDC_0, EPNUM_CDC_0_NOTIF, 8, EPNUM_CDC_0_OUT, EPNUM_CDC_0_IN, 512),
-
-        // 2nd CDC: Interface number, string index, EP notification address and size, EP data address (out, in) and size.
-        TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_1, STRING_DESC_CDC_1, EPNUM_CDC_1_NOTIF, 8, EPNUM_CDC_1_OUT, EPNUM_CDC_1_IN, 512),
-        
-        // HID: Interface number, string index, protocol, report descriptor len, EP In address, size & polling interval
-        TUD_HID_DESCRIPTOR(ITF_NUM_HID, STRING_DESC_HID, HID_ITF_PROTOCOL_NONE, sizeof(desc_hid_report), EPNUM_HID, CFG_TUD_HID_EP_BUFSIZE, 5),
-        
-        // WebUSB: Interface number, string index, EP Out & IN address, EP size
-        TUD_VENDOR_DESCRIPTOR(ITF_NUM_VENDOR_UART, STRING_DESC_WEBUSB_UART, EPNUM_VENDOR_UART_OUT, EPNUM_VENDOR_UART_IN, 32),
-        TUD_VENDOR_DESCRIPTOR(ITF_NUM_VENDOR_FS, STRING_DESC_WEBUSB_FS, EPNUM_VENDOR_FS_OUT, EPNUM_VENDOR_FS_IN, 32)
-    };
-
-    // device qualifier is mostly similar to device descriptor since we don't change configuration based on speed
-    tusb_desc_device_qualifier_t const desc_device_qualifier = {
-        .bLength            = sizeof(tusb_desc_device_t),
-        .bDescriptorType    = TUSB_DESC_DEVICE,
-        .bcdUSB             = USB_BCD,
-
-        .bDeviceClass       = TUSB_CLASS_MISC,
-        .bDeviceSubClass    = MISC_SUBCLASS_COMMON,
-        .bDeviceProtocol    = MISC_PROTOCOL_IAD,
-
-        .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
-        .bNumConfigurations = 0x01,
-        .bReserved          = 0x00
-    };
-
-    uint8_t const* tud_descriptor_device_qualifier_cb(void) {
-        return (uint8_t const*) &desc_device_qualifier;
-    }
-
-    uint8_t const* tud_descriptor_other_speed_configuration_cb(uint8_t index) {
-        (void) index;
-        return (tud_speed_get() == TUSB_SPEED_HIGH) ?  desc_fs_configuration : desc_hs_configuration;
-    }
-
-    uint8_t const * tud_descriptor_configuration_cb(uint8_t index) {
-        (void) index;
-        return (tud_speed_get() == TUSB_SPEED_HIGH) ?  desc_hs_configuration : desc_fs_configuration;
-    }
-#else
-    uint8_t const * tud_descriptor_configuration_cb(uint8_t index) {
-        (void) index;
-        return desc_fs_configuration;
-    }
-#endif
+uint8_t const * tud_descriptor_configuration_cb(uint8_t index) {
+    (void) index;
+    return desc_fs_configuration;
+}
 
 // WebUSB
 
@@ -244,7 +217,7 @@ uint8_t const desc_ms_os_20[] = {
     U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_CONFIGURATION), 0, 0, U16_TO_U8S_LE(MS_OS_20_DESC_LEN-0x0A),
 
     // Function Subset header: length, type, first interface, reserved, subset length
-    U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_FUNCTION), ITF_NUM_VENDOR_UART, 0, U16_TO_U8S_LE(MS_OS_20_DESC_LEN-0x0A-0x08),
+    U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_FUNCTION), ITF_NUM_VENDOR_0, 0, U16_TO_U8S_LE(MS_OS_20_DESC_LEN-0x0A-0x08),
 
     // MS OS 2.0 Compatible ID descriptor: length, type, compatible ID, sub compatible ID
     U16_TO_U8S_LE(0x0014), U16_TO_U8S_LE(MS_OS_20_FEATURE_COMPATBLE_ID), 'W', 'I', 'N', 'U', 'S', 'B', 0x00, 0x00,

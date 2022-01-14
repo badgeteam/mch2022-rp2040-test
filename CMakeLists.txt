@@ -16,12 +16,18 @@ endif()
 
 pico_sdk_init()
 
+add_subdirectory(i2c_slave)
+
 # Project source files
 add_executable(${NAME}
     main.c
     usb_descriptors.c
     usb_hid.c
-    blinking_led.c
+    i2c_peripheral.c
+    uart_task.c
+    webusb_task.c
+    stdio_cdc2.c
+    msc_disk.c
 )
 
 target_include_directories(${NAME} PUBLIC
@@ -30,12 +36,11 @@ target_include_directories(${NAME} PUBLIC
 target_link_libraries(${NAME}
     pico_stdlib
     pico_unique_id
+    hardware_uart
     tinyusb_device
     tinyusb_board
+    i2c_slave
 )
-
-#pico_enable_stdio_usb(${NAME} 1)
-#pico_enable_stdio_uart(${NAME} 0)
 
 pico_add_extra_outputs(${NAME})
 
