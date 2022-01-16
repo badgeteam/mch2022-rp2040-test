@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.12)
 # Project name
 set(PROJECT mch2022_firmware)
 
+set(PICO_BOARD none)
+
 # Output filename
 
 set(OUTPUT_FILENAME ${PROJECT})
@@ -67,6 +69,7 @@ add_executable(${FIRMWARE}
     stdio_cdc2.c
     msc_disk.c
     flashloader_interface.c
+    ws2812.c
 )
 
 target_include_directories(${FIRMWARE} PUBLIC
@@ -78,10 +81,14 @@ target_link_libraries(${FIRMWARE}
     hardware_watchdog
     hardware_flash
     hardware_uart
+    hardware_pio
+    hardware_pwm
     tinyusb_device
     tinyusb_board
     i2c_slave
 )
+
+pico_generate_pio_header(${FIRMWARE} ${CMAKE_CURRENT_LIST_DIR}/ws2812.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR}/generated)
 
 pico_add_uf2_output(${FIRMWARE})
 pico_add_hex_output(${FIRMWARE})

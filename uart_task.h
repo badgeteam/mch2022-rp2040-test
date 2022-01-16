@@ -14,3 +14,7 @@ void on_fpga_uart_rx();
 
 // Stdio via CDC 2
 bool stdio_usb_init_cdc2();
+
+// ESP32 control
+void wake_up_esp32();
+void send_interrupt_to_esp32();

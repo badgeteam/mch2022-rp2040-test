@@ -19,6 +19,7 @@
 #include "tusb.h"
 #include "usb_descriptors.h"
 #include "stdio_cdc2.h"
+#include "pico/stdio_uart.h"
 
 static mutex_t stdio_usb_mutex;
 
@@ -44,7 +45,7 @@ static void stdio_usb_out_chars_cdc2(const char *buf, int length) {
         if (owner == get_core_num()) return; // would deadlock otherwise
         mutex_enter_blocking(&stdio_usb_mutex);
     }
-    if (tud_cdc_n_connected(CDC_CONSOLE)) {
+    //if (tud_cdc_n_connected(CDC_CONSOLE)) {
         for (int i = 0; i < length;) {
             int n = length - i;
             int avail = (int) tud_cdc_n_write_available(CDC_CONSOLE);
@@ -64,10 +65,10 @@ static void stdio_usb_out_chars_cdc2(const char *buf, int length) {
                 }
             }
         }
-    } else {
+    /*} else {
         // reset our timeout
         last_avail_time = 0;
-    }
+    }*/
     mutex_exit(&stdio_usb_mutex);
 }
 
@@ -82,8 +83,9 @@ int stdio_usb_in_chars_cdc2(char *buf, int length) {
         mutex_enter_blocking(&stdio_usb_mutex);
     }
     int rc = PICO_ERROR_NO_DATA;
-    if (tud_cdc_n_connected(CDC_CONSOLE) && tud_cdc_available()) {
+    if (tud_cdc_n_available(CDC_CONSOLE)) {
         int count = (int) tud_cdc_n_read(CDC_CONSOLE, buf, (uint32_t) length);
+        printf("DBG: %d > %c\r\n", count, buf[0]);
         rc =  count ? count : PICO_ERROR_NO_DATA;
     }
     mutex_exit(&stdio_usb_mutex);
@@ -92,7 +94,7 @@ int stdio_usb_in_chars_cdc2(char *buf, int length) {
 
 stdio_driver_t stdio_usb_cdc2 = {
     .out_chars = stdio_usb_out_chars_cdc2,
-    .in_chars = stdio_usb_in_chars_cdc2
+    .in_chars = NULL//stdio_usb_in_chars_cdc2
 };
 
 bool stdio_usb_init_cdc2(void) {
@@ -101,8 +103,12 @@ bool stdio_usb_init_cdc2(void) {
 
     mutex_init(&stdio_usb_mutex);
     bool rc = add_alarm_in_us(PICO_STDIO_USB_TASK_INTERVAL_US, timer_task, NULL, true);
+    
+    stdio_set_driver_enabled(&stdio_uart, false);
+    
     if (rc) {
         stdio_set_driver_enabled(&stdio_usb_cdc2, true);
     }
+    
     return rc;
 }

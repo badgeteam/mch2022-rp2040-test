@@ -9,7 +9,6 @@
 #include <pico/stdlib.h>
 #include <stdio.h>
 #include <string.h>
-
 #include "i2c_peripheral.h"
 
 void setup_i2c_peripheral(i2c_inst_t *i2c, uint8_t sda_pin, uint8_t scl_pin, uint8_t address, uint32_t baudrate, i2c_slave_handler_t handler) {
@@ -29,6 +28,7 @@ void setup_i2c_peripheral(i2c_inst_t *i2c, uint8_t sda_pin, uint8_t scl_pin, uin
 /* MCH2022 I2C peripheral */
 
 #include "hardware.h"
+#include "ws2812.h"
 
 struct {
     uint8_t registers[256];
@@ -45,6 +45,22 @@ enum {
     I2C_REGISTER_GPIO_OUT,
     I2C_REGISTER_LCD_MODE,
     I2C_REGISTER_LCD_BACKLIGHT,
+    I2C_REGISTER_LED_MODE,
+    I2C_REGISTER_LED_VALUE0,
+    I2C_REGISTER_LED_VALUE1,
+    I2C_REGISTER_LED_VALUE2,
+    I2C_REGISTER_LED_VALUE3,
+    I2C_REGISTER_LED_VALUE4,
+    I2C_REGISTER_LED_VALUE5,
+    I2C_REGISTER_LED_VALUE6,
+    I2C_REGISTER_LED_VALUE7,
+    I2C_REGISTER_LED_VALUE8,
+    I2C_REGISTER_LED_VALUE9,
+    I2C_REGISTER_LED_VALUE10,
+    I2C_REGISTER_LED_VALUE11,
+    I2C_REGISTER_LED_VALUE12,
+    I2C_REGISTER_LED_VALUE13,
+    I2C_REGISTER_LED_VALUE14
 };
 
 uint8_t i2c_controlled_gpios[] = {SAO_IO0_PIN, SAO_IO1_PIN, PROTO_0_PIN, PROTO_1_PIN, PROTO_2_PIN};
@@ -92,6 +108,19 @@ void i2c_slave_handler(i2c_inst_t *i2c, i2c_slave_event_t event) {
     }
 }
 
+static bool led_enabled = false;
+static bool led_automatic = false;
+static bool led_trigger = false;
+
+void led_send() {
+    for (uint8_t i = 0; i < 5; i++) {
+        put_pixel(urgb_u32(
+            i2c_registers.registers[I2C_REGISTER_LED_VALUE0 + (i*3)],
+            i2c_registers.registers[I2C_REGISTER_LED_VALUE0 + (i*3) + 1],
+            i2c_registers.registers[I2C_REGISTER_LED_VALUE0 + (i*3) + 2]
+        ));
+    }
+}
 
 void i2c_handle_register_write(uint8_t reg, uint8_t value) {
     char text_buffer[64];
@@ -111,6 +140,38 @@ void i2c_handle_register_write(uint8_t reg, uint8_t value) {
             break;
         case I2C_REGISTER_LCD_BACKLIGHT:
             // To be done
+            break;
+        case I2C_REGISTER_LED_MODE: {
+            if ((value & 1) != led_enabled) {
+                if (value & 1) {
+                    enable_leds();
+                } else {
+                    disable_leds();
+                }
+                led_enabled = value & 1;
+            }
+            led_automatic = (value & 2) >> 1;
+            bool new_led_trigger = (value & 4) >> 2;
+            if (new_led_trigger != led_trigger) led_send();
+            led_trigger = new_led_trigger;
+            break;
+        }
+        case I2C_REGISTER_LED_VALUE0:
+        case I2C_REGISTER_LED_VALUE1:
+        case I2C_REGISTER_LED_VALUE2:
+        case I2C_REGISTER_LED_VALUE3:
+        case I2C_REGISTER_LED_VALUE4:
+        case I2C_REGISTER_LED_VALUE5:
+        case I2C_REGISTER_LED_VALUE6:
+        case I2C_REGISTER_LED_VALUE7:
+        case I2C_REGISTER_LED_VALUE8:
+        case I2C_REGISTER_LED_VALUE9:
+        case I2C_REGISTER_LED_VALUE10:
+        case I2C_REGISTER_LED_VALUE11:
+        case I2C_REGISTER_LED_VALUE12:
+        case I2C_REGISTER_LED_VALUE13:
+        case I2C_REGISTER_LED_VALUE14:
+            if (led_automatic) led_send();
             break;
         default:
             break;

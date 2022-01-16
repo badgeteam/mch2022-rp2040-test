@@ -1,5 +1,7 @@
 #pragma once
 
+#define PICO_FLASH_SIZE_BYTES 16777216
+
 // UART0: connected to ESP32
 #define UART_ESP32 uart0
 #define UART_ESP32_TX_PIN 0
@@ -21,6 +23,12 @@
 #define I2C_SYSTEM i2c1
 #define I2C_SYSTEM_SDA_PIN 2
 #define I2C_SYSTEM_SCL_PIN 3
+
+// SPI0: SPI bus
+#define SPI_SCK 18
+#define SPI_TX 19
+#define SPI_RX 20
+#define SPI_CS 21
 
 // Addressable LEDs
 #define LED_DATA_PIN 11
@@ -54,3 +62,7 @@
 #define PROTO_1_PIN 5
 #define PROTO_2_PIN 10
 
+// USB virtual device numbers
+#define USB_CDC_ESP32 0
+#define USB_CDC_FPGA 1
+#define USB_CDC_STDIO 2

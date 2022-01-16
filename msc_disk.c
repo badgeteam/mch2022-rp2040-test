@@ -91,7 +91,7 @@ void tud_msc_inquiry_cb(uint8_t lun, uint8_t vendor_id[8], uint8_t product_id[16
 {
   (void) lun;
   
-  printf("MSC: inquiry\r\n");
+  //printf("MSC: inquiry\r\n");
 
   const char vid[] = "TinyUSB";
   const char pid[] = "Mass Storage";
@@ -108,7 +108,7 @@ bool tud_msc_test_unit_ready_cb(uint8_t lun)
 {
   (void) lun;
   
-  printf("MSC: test ready: %s\r\n", ejected ? "ejected" : "ready");
+  //printf("MSC: test ready: %s\r\n", ejected ? "ejected" : "ready");
 
   // RAM disk is ready until ejected
   if (ejected) {
@@ -125,7 +125,7 @@ void tud_msc_capacity_cb(uint8_t lun, uint32_t* block_count, uint16_t* block_siz
 {
   (void) lun;
   
-  printf("MSC: capacity\r\n");
+  //printf("MSC: capacity\r\n");
 
   *block_count = DISK_BLOCK_NUM;
   *block_size  = DISK_BLOCK_SIZE;
@@ -139,7 +139,7 @@ bool tud_msc_start_stop_cb(uint8_t lun, uint8_t power_condition, bool start, boo
   (void) lun;
   (void) power_condition;
 
-  printf("MSC: start/stop: %s\r\n", load_eject ? "load" : "eject");
+  //printf("MSC: start/stop: %s\r\n", load_eject ? "load" : "eject");
   
   if ( load_eject )
   {
@@ -162,7 +162,7 @@ int32_t tud_msc_read10_cb(uint8_t lun, uint32_t lba, uint32_t offset, void* buff
 {
   (void) lun;
   
-  printf("MSC: read10\r\n");
+  //printf("MSC: read10\r\n");
 
   // out of ramdisk
   if ( lba >= DISK_BLOCK_NUM ) return -1;
@@ -186,7 +186,7 @@ int32_t tud_msc_write10_cb(uint8_t lun, uint32_t lba, uint32_t offset, uint8_t* 
 {
   (void) lun;
   
-  printf("MSC: write10\r\n");
+  //printf("MSC: write10\r\n");
 
   // out of ramdisk
   if ( lba >= DISK_BLOCK_NUM ) return -1;
@@ -201,7 +201,7 @@ int32_t tud_msc_scsi_cb (uint8_t lun, uint8_t const scsi_cmd[16], void* buffer, 
 {
   // read10 & write10 has their own callback and MUST not be handled here
 
-  printf("MSC: scsi\r\n");
+  //printf("MSC: scsi\r\n");
     
   void const* response = NULL;
   int32_t resplen = 0;
