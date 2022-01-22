@@ -3,3 +3,4 @@
 set -e
 
 picotool load build/mch2022_firmware.uf2
+picotool reboot

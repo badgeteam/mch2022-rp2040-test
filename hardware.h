@@ -1,6 +1,13 @@
 #pragma once
 
-#define PICO_FLASH_SIZE_BYTES 16777216
+#ifndef PICO_FLASH_SIZE_BYTES
+#define PICO_FLASH_SIZE_BYTES (16 * 1024 * 1024)
+#endif
+
+#ifndef PICO_FLASH_SPI_CLKDIV
+#define PICO_FLASH_SPI_CLKDIV 2
+#endif
+
 
 // UART0: connected to ESP32
 #define UART_ESP32 uart0
@@ -46,8 +53,11 @@
 
 // Analog inputs
 #define ANALOG_TEMP_PIN 27
+#define ANALOG_TEMP_ADC 1
 #define ANALOG_VBAT_PIN 28
+#define ANALOG_VBAT_ADC 2
 #define ANALOG_VUSB_PIN 29
+#define ANALOG_VUSB_ADC 0
 
 // System state GPIOs
 #define USB_DET_PIN 26

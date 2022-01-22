@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "i2c_peripheral.h"
+#include "lcd.h"
 
 void setup_i2c_peripheral(i2c_inst_t *i2c, uint8_t sda_pin, uint8_t scl_pin, uint8_t address, uint32_t baudrate, i2c_slave_handler_t handler) {
     gpio_init(sda_pin);
@@ -38,31 +39,6 @@ struct {
     bool transfer_in_progress;
 } i2c_registers;
 
-enum {
-    I2C_REGISTER_FW_VER,
-    I2C_REGISTER_GPIO_DIR,
-    I2C_REGISTER_GPIO_IN,
-    I2C_REGISTER_GPIO_OUT,
-    I2C_REGISTER_LCD_MODE,
-    I2C_REGISTER_LCD_BACKLIGHT,
-    I2C_REGISTER_LED_MODE,
-    I2C_REGISTER_LED_VALUE0,
-    I2C_REGISTER_LED_VALUE1,
-    I2C_REGISTER_LED_VALUE2,
-    I2C_REGISTER_LED_VALUE3,
-    I2C_REGISTER_LED_VALUE4,
-    I2C_REGISTER_LED_VALUE5,
-    I2C_REGISTER_LED_VALUE6,
-    I2C_REGISTER_LED_VALUE7,
-    I2C_REGISTER_LED_VALUE8,
-    I2C_REGISTER_LED_VALUE9,
-    I2C_REGISTER_LED_VALUE10,
-    I2C_REGISTER_LED_VALUE11,
-    I2C_REGISTER_LED_VALUE12,
-    I2C_REGISTER_LED_VALUE13,
-    I2C_REGISTER_LED_VALUE14
-};
-
 uint8_t i2c_controlled_gpios[] = {SAO_IO0_PIN, SAO_IO1_PIN, PROTO_0_PIN, PROTO_1_PIN, PROTO_2_PIN};
 
 void setup_i2c_registers() {
@@ -79,6 +55,12 @@ void setup_i2c_registers() {
     for (uint8_t pin = 0; pin < sizeof(i2c_controlled_gpios); pin++) {
         gpio_init(i2c_controlled_gpios[pin]);
     }
+}
+
+void i2c_register_write(uint8_t reg, uint8_t value) {
+    i2c_registers.registers[reg] = value;
+    i2c_registers.modified[reg] = true;
+    printf("Write I2C reg %02x with %02x\r\n", reg, value);
 }
 
 void i2c_slave_handler(i2c_inst_t *i2c, i2c_slave_event_t event) {
@@ -120,23 +102,27 @@ void led_send() {
             i2c_registers.registers[I2C_REGISTER_LED_VALUE0 + (i*3) + 2]
         ));
     }
+    printf("LED data sent\r\n");
 }
 
 void i2c_handle_register_write(uint8_t reg, uint8_t value) {
     char text_buffer[64];
     switch (reg) {
         case I2C_REGISTER_GPIO_DIR:
+            printf("GPIO direction 0x%02x set to\r\n", value);
             for (uint8_t pin = 0; pin < sizeof(i2c_controlled_gpios); pin++) {
                 gpio_set_dir(i2c_controlled_gpios[pin], (value & (1 << pin)) >> pin);
             }
             break;
         case I2C_REGISTER_GPIO_OUT:
+            printf("GPIO output value 0x%02x set to\r\n", value);
             for (uint8_t pin = 0; pin < sizeof(i2c_controlled_gpios); pin++) {
                 gpio_put(i2c_controlled_gpios[pin], (value & (1 << pin)) >> pin);
             }
             break;
         case I2C_REGISTER_LCD_MODE:
-            // To be done
+            lcd_mode(value & 1);
+            printf("LCD mode: %s\r\n", (value & 1) ? "parallel" : "spi");
             break;
         case I2C_REGISTER_LCD_BACKLIGHT:
             // To be done
@@ -145,8 +131,10 @@ void i2c_handle_register_write(uint8_t reg, uint8_t value) {
             if ((value & 1) != led_enabled) {
                 if (value & 1) {
                     enable_leds();
+                    printf("LEDs enabled\r\n");
                 } else {
                     disable_leds();
+                    printf("LEDs disabled\r\n");
                 }
                 led_enabled = value & 1;
             }
@@ -181,9 +169,10 @@ void i2c_handle_register_write(uint8_t reg, uint8_t value) {
 void i2c_task() {
     for (uint16_t reg = 0; reg < 256; reg++) {
         if (i2c_registers.modified[reg]) {
+            printf("I2C reg %02x modified: %02x\r\n", reg, i2c_registers.registers[reg]);
             i2c_handle_register_write(reg, i2c_registers.registers[reg]);
             i2c_registers.modified[reg] = false;
-        }       
+        }
     }
     
     // Read GPIO pins

@@ -23,6 +23,11 @@
 
 static mutex_t stdio_usb_mutex;
 
+static bool cdc_enabled = false;
+void cdc2_control(bool state) {
+    cdc_enabled = state;
+}
+
 static void low_priority_worker_irq(void) {
     // if the mutex is already owned, then we are in user code
     // in this file which will do a tud_task itself, so we'll just do nothing
@@ -39,6 +44,7 @@ static int64_t timer_task(__unused alarm_id_t id, __unused void *user_data) {
 }
 
 static void stdio_usb_out_chars_cdc2(const char *buf, int length) {
+    if (!cdc_enabled) return;
     static uint64_t last_avail_time;
     uint32_t owner;
     if (!mutex_try_enter(&stdio_usb_mutex, &owner)) {
@@ -73,6 +79,7 @@ static void stdio_usb_out_chars_cdc2(const char *buf, int length) {
 }
 
 bool stdio_usb_connected_cdc2(void) {
+    if (!cdc_enabled) return false;
     return tud_cdc_n_connected(CDC_CONSOLE);
 }
 
@@ -85,9 +92,9 @@ int stdio_usb_in_chars_cdc2(char *buf, int length) {
     int rc = PICO_ERROR_NO_DATA;
     if (tud_cdc_n_available(CDC_CONSOLE)) {
         int count = (int) tud_cdc_n_read(CDC_CONSOLE, buf, (uint32_t) length);
-        printf("DBG: %d > %c\r\n", count, buf[0]);
         rc =  count ? count : PICO_ERROR_NO_DATA;
     }
+    if (!cdc_enabled) rc = 0;
     mutex_exit(&stdio_usb_mutex);
     return rc;
 }
@@ -98,17 +105,17 @@ stdio_driver_t stdio_usb_cdc2 = {
 };
 
 bool stdio_usb_init_cdc2(void) {
-    irq_set_exclusive_handler(PICO_STDIO_USB_LOW_PRIORITY_IRQ, low_priority_worker_irq);
-    irq_set_enabled(PICO_STDIO_USB_LOW_PRIORITY_IRQ, true);
+    //irq_set_exclusive_handler(PICO_STDIO_USB_LOW_PRIORITY_IRQ, low_priority_worker_irq);
+    //irq_set_enabled(PICO_STDIO_USB_LOW_PRIORITY_IRQ, true);
 
     mutex_init(&stdio_usb_mutex);
-    bool rc = add_alarm_in_us(PICO_STDIO_USB_TASK_INTERVAL_US, timer_task, NULL, true);
+    //bool rc = add_alarm_in_us(PICO_STDIO_USB_TASK_INTERVAL_US, timer_task, NULL, true);
     
     stdio_set_driver_enabled(&stdio_uart, false);
     
-    if (rc) {
+    //if (rc) {
         stdio_set_driver_enabled(&stdio_usb_cdc2, true);
-    }
+    //}
     
-    return rc;
+    return 0;//rc;
 }

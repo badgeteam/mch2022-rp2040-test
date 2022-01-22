@@ -22,6 +22,11 @@ static absolute_time_t esp32_reset_timeout = 0;
 static bool esp32_wakeup_active = false;
 static absolute_time_t esp32_wakeup_timeout = 0;
 
+static bool cdc_enabled = false;
+void cdc_control(bool state) {
+    cdc_enabled = state;
+}
+
 void setup_uart() {
     uart_init(UART_ESP32, 115200);
     gpio_set_function(UART_ESP32_TX_PIN, GPIO_FUNC_UART);
@@ -36,7 +41,7 @@ void setup_uart() {
 
     gpio_init(ESP32_EN_PIN);
     gpio_set_dir(ESP32_EN_PIN, true);
-    gpio_put(ESP32_EN_PIN, true);
+    gpio_put(ESP32_EN_PIN, false);
 
     gpio_init(ESP32_WK_PIN); // This is the PCA9555 interrupt line, do not set to output high!
     gpio_set_dir(ESP32_WK_PIN, false);
@@ -69,12 +74,16 @@ void on_esp32_uart_rx() {
         buffer[length] = uart_getc(UART_ESP32);
         length++;
         if (length >= sizeof(buffer)) {
-            cdc_send(0, buffer, length);
+            if (cdc_enabled && tud_ready()) {
+                cdc_send(0, buffer, length);
+            }
             length = 0;
         }
     }
     if (length > 0) {
-        cdc_send(0, buffer, length);
+        if (cdc_enabled && tud_ready()) {
+            cdc_send(0, buffer, length);
+        }
         length = 0;
     }
 }
@@ -86,25 +95,35 @@ void on_fpga_uart_rx() {
         buffer[length] = uart_getc(UART_FPGA);
         length++;
         if (length >= sizeof(buffer)) {
-            cdc_send(1, buffer, length);
+            if (cdc_enabled && tud_ready()) {
+                cdc_send(1, buffer, length);
+            }
             length = 0;
         }
     }
     if (length > 0) {
-        cdc_send(1, buffer, length);
+        if (cdc_enabled && tud_ready()) {
+            cdc_send(1, buffer, length);
+        }
         length = 0;
     }
 }
 
 void cdc_send(uint8_t itf, uint8_t* buf, uint32_t count) {
-  for(uint32_t i=0; i<count; i++) {
-    tud_cdc_n_write_char(itf, buf[i]);
-  }
-  tud_cdc_n_write_flush(itf);
+    if ((!cdc_enabled) || (!tud_ready())) {
+        return;
+    }
+    tud_cdc_n_write(itf, buf, count);
+    tud_cdc_n_write_flush(itf);
 }
 
 void cdc_task(void) {
     uint8_t buffer[64];
+    
+    if ((!cdc_enabled) || (!tud_ready())) {
+        return;
+    }
+    
     if (tud_cdc_n_available(USB_CDC_ESP32)) {
         uint32_t length = tud_cdc_n_read(USB_CDC_ESP32, buffer, sizeof(buffer));
         for (uint32_t position = 0; position < length; position++) {
@@ -120,8 +139,7 @@ void cdc_task(void) {
             uart_putc_raw(UART_FPGA, buffer[position]);
         }
     }
-    
-    
+
     absolute_time_t now = get_absolute_time();
     if((esp32_reset_state || esp32_reset_active) && now > esp32_reset_timeout) {
         if (esp32_reset_active) {
@@ -145,6 +163,10 @@ void cdc_task(void) {
 }
 
 void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding) {
+    if ((!cdc_enabled) || (!tud_ready())) {
+        return;
+    }
+
     uart_inst_t* uart;
     switch (itf) {
         case USB_CDC_ESP32:
@@ -183,6 +205,8 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding)
     
     uart_set_baudrate(uart, p_line_coding->bit_rate);
     uart_set_format(uart, data_bits, stop_bits, parity);
+    
+    printf("ESP32 UART settings changed to %u baud, %s parity, %d stop bits, %d data bits\r\n", p_line_coding->bit_rate, (p_line_coding->parity == 2) ? "even" : (p_line_coding->parity == 1) ? "odd" : "no", p_line_coding->stop_bits + 1, p_line_coding->data_bits);
 }
 
 void esp32_reset(bool download_mode) {
@@ -196,6 +220,9 @@ void esp32_reset(bool download_mode) {
 bool prev_dtr = false;
 bool prev_rts = false;
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
+    if ((!cdc_enabled) || (!tud_ready())) {
+        return;
+    }
     if(itf == USB_CDC_ESP32) {
         bool dtr2 = dtr || prev_dtr;
         bool rts2 = rts || prev_rts;

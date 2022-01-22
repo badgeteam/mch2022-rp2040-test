@@ -3,7 +3,9 @@ cmake_minimum_required(VERSION 3.12)
 # Project name
 set(PROJECT mch2022_firmware)
 
-set(PICO_BOARD none)
+# Board type
+set(PICO_BOARD none) # MCH2022 badge
+#set(PICO_BOARD pico) # Pico board (for debugging)
 
 # Output filename
 
@@ -70,6 +72,7 @@ add_executable(${FIRMWARE}
     msc_disk.c
     flashloader_interface.c
     ws2812.c
+    lcd.c
 )
 
 target_include_directories(${FIRMWARE} PUBLIC
@@ -83,6 +86,7 @@ target_link_libraries(${FIRMWARE}
     hardware_uart
     hardware_pio
     hardware_pwm
+    hardware_adc
     tinyusb_device
     tinyusb_board
     i2c_slave
