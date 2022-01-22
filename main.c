@@ -196,25 +196,17 @@ int main(void) {
 
 // Invoked when device is mounted
 void tud_mount_cb(void) {
-    cdc_control(true);
-    cdc2_control(true);
 }
 
 // Invoked when device is unmounted
 void tud_umount_cb(void) {
-    cdc_control(false);
-    cdc2_control(false);
 }
 
 // Invoked when usb bus is suspended
 void tud_suspend_cb(bool remote_wakeup_en) {
   (void) remote_wakeup_en;
-  cdc_control(false);
-  cdc2_control(false);
 }
 
 // Invoked when usb bus is resumed
 void tud_resume_cb(void) {
-  cdc_control(true);
-  cdc2_control(true);
 }

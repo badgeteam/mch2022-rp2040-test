@@ -4,9 +4,6 @@
 
 void setup_uart();
 
-// State control
-void cdc_control(bool state);
-
 // USB CDC serial port
 void cdc_task(void);
 void cdc_send(uint8_t itf, uint8_t* buf, uint32_t count);

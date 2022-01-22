@@ -22,11 +22,6 @@ static absolute_time_t esp32_reset_timeout = 0;
 static bool esp32_wakeup_active = false;
 static absolute_time_t esp32_wakeup_timeout = 0;
 
-static bool cdc_enabled = false;
-void cdc_control(bool state) {
-    cdc_enabled = state;
-}
-
 void setup_uart() {
     uart_init(UART_ESP32, 115200);
     gpio_set_function(UART_ESP32_TX_PIN, GPIO_FUNC_UART);
@@ -74,14 +69,14 @@ void on_esp32_uart_rx() {
         buffer[length] = uart_getc(UART_ESP32);
         length++;
         if (length >= sizeof(buffer)) {
-            if (cdc_enabled && tud_ready()) {
+            if (tud_ready()) {
                 cdc_send(0, buffer, length);
             }
             length = 0;
         }
     }
     if (length > 0) {
-        if (cdc_enabled && tud_ready()) {
+        if (tud_ready()) {
             cdc_send(0, buffer, length);
         }
         length = 0;
@@ -95,14 +90,14 @@ void on_fpga_uart_rx() {
         buffer[length] = uart_getc(UART_FPGA);
         length++;
         if (length >= sizeof(buffer)) {
-            if (cdc_enabled && tud_ready()) {
+            if (tud_ready()) {
                 cdc_send(1, buffer, length);
             }
             length = 0;
         }
     }
     if (length > 0) {
-        if (cdc_enabled && tud_ready()) {
+        if (tud_ready()) {
             cdc_send(1, buffer, length);
         }
         length = 0;
@@ -110,7 +105,7 @@ void on_fpga_uart_rx() {
 }
 
 void cdc_send(uint8_t itf, uint8_t* buf, uint32_t count) {
-    if ((!cdc_enabled) || (!tud_ready())) {
+    if (!tud_ready()) {
         return;
     }
     tud_cdc_n_write(itf, buf, count);
@@ -119,10 +114,6 @@ void cdc_send(uint8_t itf, uint8_t* buf, uint32_t count) {
 
 void cdc_task(void) {
     uint8_t buffer[64];
-    
-    if ((!cdc_enabled) || (!tud_ready())) {
-        return;
-    }
     
     if (tud_cdc_n_available(USB_CDC_ESP32)) {
         uint32_t length = tud_cdc_n_read(USB_CDC_ESP32, buffer, sizeof(buffer));
@@ -163,10 +154,6 @@ void cdc_task(void) {
 }
 
 void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding) {
-    if ((!cdc_enabled) || (!tud_ready())) {
-        return;
-    }
-
     uart_inst_t* uart;
     switch (itf) {
         case USB_CDC_ESP32:
@@ -220,7 +207,7 @@ void esp32_reset(bool download_mode) {
 bool prev_dtr = false;
 bool prev_rts = false;
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
-    if ((!cdc_enabled) || (!tud_ready())) {
+    if (!tud_ready()) {
         return;
     }
     if(itf == USB_CDC_ESP32) {

@@ -21,14 +21,9 @@
 #include "stdio_cdc2.h"
 #include "pico/stdio_uart.h"
 
-static mutex_t stdio_usb_mutex;
+//static mutex_t stdio_usb_mutex;
 
-static bool cdc_enabled = false;
-void cdc2_control(bool state) {
-    cdc_enabled = state;
-}
-
-static void low_priority_worker_irq(void) {
+/*static void low_priority_worker_irq(void) {
     // if the mutex is already owned, then we are in user code
     // in this file which will do a tud_task itself, so we'll just do nothing
     // until the next tick; we won't starve
@@ -36,7 +31,7 @@ static void low_priority_worker_irq(void) {
         tud_task();
         mutex_exit(&stdio_usb_mutex);
     }
-}
+}*/
 
 static int64_t timer_task(__unused alarm_id_t id, __unused void *user_data) {
     irq_set_pending(PICO_STDIO_USB_LOW_PRIORITY_IRQ);
@@ -44,13 +39,12 @@ static int64_t timer_task(__unused alarm_id_t id, __unused void *user_data) {
 }
 
 static void stdio_usb_out_chars_cdc2(const char *buf, int length) {
-    if (!cdc_enabled) return;
     static uint64_t last_avail_time;
     uint32_t owner;
-    if (!mutex_try_enter(&stdio_usb_mutex, &owner)) {
+    /*if (!mutex_try_enter(&stdio_usb_mutex, &owner)) {
         if (owner == get_core_num()) return; // would deadlock otherwise
         mutex_enter_blocking(&stdio_usb_mutex);
-    }
+    }*/
     //if (tud_cdc_n_connected(CDC_CONSOLE)) {
         for (int i = 0; i < length;) {
             int n = length - i;
@@ -75,27 +69,25 @@ static void stdio_usb_out_chars_cdc2(const char *buf, int length) {
         // reset our timeout
         last_avail_time = 0;
     }*/
-    mutex_exit(&stdio_usb_mutex);
+    //mutex_exit(&stdio_usb_mutex);
 }
 
 bool stdio_usb_connected_cdc2(void) {
-    if (!cdc_enabled) return false;
     return tud_cdc_n_connected(CDC_CONSOLE);
 }
 
 int stdio_usb_in_chars_cdc2(char *buf, int length) {
     uint32_t owner;
-    if (!mutex_try_enter(&stdio_usb_mutex, &owner)) {
+    /*if (!mutex_try_enter(&stdio_usb_mutex, &owner)) {
         if (owner == get_core_num()) return PICO_ERROR_NO_DATA; // would deadlock otherwise
         mutex_enter_blocking(&stdio_usb_mutex);
-    }
+    }*/
     int rc = PICO_ERROR_NO_DATA;
     if (tud_cdc_n_available(CDC_CONSOLE)) {
         int count = (int) tud_cdc_n_read(CDC_CONSOLE, buf, (uint32_t) length);
         rc =  count ? count : PICO_ERROR_NO_DATA;
     }
-    if (!cdc_enabled) rc = 0;
-    mutex_exit(&stdio_usb_mutex);
+    //mutex_exit(&stdio_usb_mutex);
     return rc;
 }
 
@@ -108,7 +100,7 @@ bool stdio_usb_init_cdc2(void) {
     //irq_set_exclusive_handler(PICO_STDIO_USB_LOW_PRIORITY_IRQ, low_priority_worker_irq);
     //irq_set_enabled(PICO_STDIO_USB_LOW_PRIORITY_IRQ, true);
 
-    mutex_init(&stdio_usb_mutex);
+    //mutex_init(&stdio_usb_mutex);
     //bool rc = add_alarm_in_us(PICO_STDIO_USB_TASK_INTERVAL_US, timer_task, NULL, true);
     
     stdio_set_driver_enabled(&stdio_uart, false);
