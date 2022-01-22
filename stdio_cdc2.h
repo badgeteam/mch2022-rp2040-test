@@ -38,3 +38,4 @@
 // Stdio via CDC 2
 bool stdio_usb_init_cdc2();
 int stdio_usb_in_chars_cdc2(char *buf, int length);
+void cdc2_control(bool state);
