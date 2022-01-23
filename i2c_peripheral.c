@@ -25,7 +25,6 @@ void setup_i2c_peripheral(i2c_inst_t *i2c, uint8_t sda_pin, uint8_t scl_pin, uin
     i2c_slave_init(i2c, address, handler);
 }
 
-
 /* MCH2022 I2C peripheral */
 
 #include "hardware.h"
@@ -60,7 +59,6 @@ void setup_i2c_registers() {
 void i2c_register_write(uint8_t reg, uint8_t value) {
     i2c_registers.registers[reg] = value;
     i2c_registers.modified[reg] = true;
-    printf("Write I2C reg %02x with %02x\r\n", reg, value);
 }
 
 void i2c_slave_handler(i2c_inst_t *i2c, i2c_slave_event_t event) {
@@ -102,7 +100,6 @@ void led_send() {
             i2c_registers.registers[I2C_REGISTER_LED_VALUE0 + (i*3) + 2]
         ));
     }
-    printf("LED data sent\r\n");
 }
 
 void i2c_handle_register_write(uint8_t reg, uint8_t value) {
@@ -125,7 +122,7 @@ void i2c_handle_register_write(uint8_t reg, uint8_t value) {
             printf("LCD mode: %s\r\n", (value & 1) ? "parallel" : "spi");
             break;
         case I2C_REGISTER_LCD_BACKLIGHT:
-            // To be done
+            lcd_backlight(value);
             break;
         case I2C_REGISTER_LED_MODE: {
             if ((value & 1) != led_enabled) {
@@ -169,7 +166,6 @@ void i2c_handle_register_write(uint8_t reg, uint8_t value) {
 void i2c_task() {
     for (uint16_t reg = 0; reg < 256; reg++) {
         if (i2c_registers.modified[reg]) {
-            printf("I2C reg %02x modified: %02x\r\n", reg, i2c_registers.registers[reg]);
             i2c_handle_register_write(reg, i2c_registers.registers[reg]);
             i2c_registers.modified[reg] = false;
         }

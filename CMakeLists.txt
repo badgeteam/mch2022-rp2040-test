@@ -69,7 +69,7 @@ add_executable(${FIRMWARE}
     uart_task.c
     webusb_task.c
     stdio_cdc2.c
-    msc_disk.c
+    #msc_disk.c
     flashloader_interface.c
     ws2812.c
     lcd.c

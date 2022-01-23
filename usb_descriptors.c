@@ -22,7 +22,7 @@ char const* string_desc_arr [] = {
   "WebUSB ESP32 console",        // 6: WebUSB Interface: console
   "WebUSB control interface"     // 7: WebUSB Interface: control
   "HID",                         // 8: HID interface
-  "Mass storage"                 // 9: Mass storage interface
+//  "Mass storage"                 // 9: Mass storage interface
 };
 
 enum {
@@ -35,7 +35,7 @@ enum {
     STRING_DESC_WEBUSB_UART,
     STRING_DESC_WEBUSB_FS,
     STRING_DESC_HID,
-    STRING_DESC_MSC,
+//    STRING_DESC_MSC,
     STRING_DESC_SERIAL // (Not in the string description array)
 };
 
@@ -180,7 +180,7 @@ uint8_t const desc_fs_configuration[] = {
     TUD_VENDOR_DESCRIPTOR(ITF_NUM_VENDOR_1, STRING_DESC_WEBUSB_FS, EPNUM_VENDOR_1_OUT, EPNUM_VENDOR_1_IN, 32),
     
     // MSC: Interface number, string index, EP Out & EP In address, EP size
-    TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, STRING_DESC_MSC, EPNUM_MSC_OUT, EPNUM_MSC_IN, 64),
+    //TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, STRING_DESC_MSC, EPNUM_MSC_OUT, EPNUM_MSC_IN, 64),
 };
 
 uint8_t const * tud_descriptor_configuration_cb(uint8_t index) {
