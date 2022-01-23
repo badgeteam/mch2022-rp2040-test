@@ -68,17 +68,16 @@ void on_esp32_uart_rx() {
     while (uart_is_readable(UART_ESP32)) {
         buffer[length] = uart_getc(UART_ESP32);
         length++;
+        /*printf("ESP32:");
+        for (uint8_t i = 0; i < length; i++) printf("%c", buffer[i]);
+        printf("\r\n");*/
         if (length >= sizeof(buffer)) {
-            if (tud_ready()) {
-                cdc_send(0, buffer, length);
-            }
+            cdc_send(0, buffer, length);
             length = 0;
         }
     }
     if (length > 0) {
-        if (tud_ready()) {
-            cdc_send(0, buffer, length);
-        }
+        cdc_send(0, buffer, length);
         length = 0;
     }
 }
@@ -90,24 +89,17 @@ void on_fpga_uart_rx() {
         buffer[length] = uart_getc(UART_FPGA);
         length++;
         if (length >= sizeof(buffer)) {
-            if (tud_ready()) {
-                cdc_send(1, buffer, length);
-            }
+            cdc_send(1, buffer, length);
             length = 0;
         }
     }
     if (length > 0) {
-        if (tud_ready()) {
-            cdc_send(1, buffer, length);
-        }
+        cdc_send(1, buffer, length);
         length = 0;
     }
 }
 
 void cdc_send(uint8_t itf, uint8_t* buf, uint32_t count) {
-    if (!tud_ready()) {
-        return;
-    }
     tud_cdc_n_write(itf, buf, count);
     tud_cdc_n_write_flush(itf);
 }
@@ -193,7 +185,7 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding)
     uart_set_baudrate(uart, p_line_coding->bit_rate);
     uart_set_format(uart, data_bits, stop_bits, parity);
     
-    printf("ESP32 UART settings changed to %u baud, %s parity, %d stop bits, %d data bits\r\n", p_line_coding->bit_rate, (p_line_coding->parity == 2) ? "even" : (p_line_coding->parity == 1) ? "odd" : "no", p_line_coding->stop_bits + 1, p_line_coding->data_bits);
+    //printf("ESP32 UART settings changed to %u baud, %s parity, %d stop bits, %d data bits\r\n", p_line_coding->bit_rate, (p_line_coding->parity == 2) ? "even" : (p_line_coding->parity == 1) ? "odd" : "no", p_line_coding->stop_bits + 1, p_line_coding->data_bits);
 }
 
 void esp32_reset(bool download_mode) {
@@ -201,15 +193,12 @@ void esp32_reset(bool download_mode) {
     gpio_put(ESP32_EN_PIN, false);
     esp32_reset_active = true;
     esp32_reset_timeout = delayed_by_ms(get_absolute_time(), 25);
-    printf("ESP32 reset to %s\r\n", download_mode ? "DL" : "APP");
+    //printf("ESP32 reset to %s\r\n", download_mode ? "DL" : "APP");
 }
 
 bool prev_dtr = false;
 bool prev_rts = false;
 void tud_cdc_line_state_cb(uint8_t itf, bool dtr, bool rts) {
-    if (!tud_ready()) {
-        return;
-    }
     if(itf == USB_CDC_ESP32) {
         bool dtr2 = dtr || prev_dtr;
         bool rts2 = rts || prev_rts;
