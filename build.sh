@@ -5,6 +5,8 @@ set -u
 
 INSTALL_PREFIX=$PWD
 
+mkdir -p generated
+
 mkdir -p build
 cd build
 
