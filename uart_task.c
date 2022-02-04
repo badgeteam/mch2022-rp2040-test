@@ -191,7 +191,7 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding)
         uart_set_format(uart, data_bits, stop_bits, parity);
     }
     
-    //printf("ESP32 UART settings changed to %d baud, %s parity, %d stop bits, %d data bits\r\n", actual_baudrate, (p_line_coding->parity == 2) ? "even" : (p_line_coding->parity == 1) ? "odd" : "no", p_line_coding->stop_bits + 1, p_line_coding->data_bits);
+    printf("UART %u settings changed to %d baud, %s parity, %d stop bits, %d data bits\r\n", itf, actual_baudrate, (p_line_coding->parity == 2) ? "even" : (p_line_coding->parity == 1) ? "odd" : "no", p_line_coding->stop_bits + 1, p_line_coding->data_bits);
 }
 
 void esp32_reset(bool download_mode) {

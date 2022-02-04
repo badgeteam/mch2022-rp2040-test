@@ -48,7 +48,7 @@ void lcd_init() {
 void lcd_mode(bool parallel_mode) {
     gpio_put(LCD_MODE_PIN, parallel_mode);
     gpio_put(LCD_RESET_PIN, false);
-    sleep_ms(10);
+    sleep_ms(5);
     gpio_put(LCD_RESET_PIN, true);
 }
 
