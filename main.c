@@ -32,9 +32,9 @@ int map(int s, int a1, int a2, int b1, int b2) {
 
 int main(void) {
     board_init();
+    tusb_init();
     lcd_init();
     setup_leds();
-    tusb_init();
     stdio_usb_init_cdc2();
     setup_uart();
     setup_i2c_registers();
@@ -57,12 +57,12 @@ int main(void) {
 
     while (1) {
         tud_task(); // tinyusb device task
-        hid_task();
         cdc_task();
         webusb_task();
+        hid_task();
         i2c_task();
 
-        char buffer[16];
+        /*char buffer[16];
         int nread = stdio_usb_in_chars_cdc2(buffer, 16);
         
         if ((nread != PICO_ERROR_NO_DATA) && (nread > 0)) {
@@ -183,7 +183,7 @@ int main(void) {
                         printf("Unknown command %c\r\n", buffer[i]);
                 }
             }
-        }
+        }*/
         
         if (board_button_read()) {
             printf("Reset to USB bootloader...\r\n");

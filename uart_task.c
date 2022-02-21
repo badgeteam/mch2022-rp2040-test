@@ -22,6 +22,18 @@ static absolute_time_t esp32_reset_timeout = 0;
 static bool esp32_wakeup_active = false;
 static absolute_time_t esp32_wakeup_timeout = 0;
 
+void setup_esp32_uart(uint baudrate) {
+    uart_init(UART_ESP32, baudrate);
+    uart_set_fifo_enabled(UART_ESP32, false);
+    gpio_set_function(UART_ESP32_TX_PIN, GPIO_FUNC_UART);
+    gpio_set_function(UART_ESP32_RX_PIN, GPIO_FUNC_UART);
+    irq_set_exclusive_handler(UART0_IRQ, on_esp32_uart_rx);
+    irq_set_enabled(UART0_IRQ, true);
+    uart_set_irq_enables(UART_ESP32, true, false);
+    uart_set_hw_flow(UART_ESP32, false, false);
+    uart_set_fifo_enabled(UART_ESP32, true);
+}
+
 void setup_uart() {
     gpio_init(ESP32_BL_PIN);
     gpio_set_dir(ESP32_BL_PIN, true);
@@ -34,13 +46,14 @@ void setup_uart() {
     gpio_init(ESP32_WK_PIN); // This is the PCA9555 interrupt line, do not set to output high!
     gpio_set_dir(ESP32_WK_PIN, false);
 
-    uart_init(UART_ESP32, 115200);
+    /*uart_init(UART_ESP32, 115200);
     gpio_set_function(UART_ESP32_TX_PIN, GPIO_FUNC_UART);
     gpio_set_function(UART_ESP32_RX_PIN, GPIO_FUNC_UART);
     irq_set_exclusive_handler(UART0_IRQ, on_esp32_uart_rx);
     irq_set_enabled(UART0_IRQ, true);
     uart_set_irq_enables(UART_ESP32, true, false);
-    uart_set_hw_flow(UART_ESP32, false, false);
+    uart_set_hw_flow(UART_ESP32, false, false);*/
+    setup_esp32_uart(115200);
 
     uart_init(UART_FPGA, 115200);
     gpio_set_function(UART_FPGA_TX_PIN, GPIO_FUNC_UART);
@@ -186,12 +199,15 @@ void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding)
     
     int actual_baudrate = 0;
 
-    if (p_line_coding->bit_rate != 4000000) { // Workaround, for some reason this baudrate gets requested sometimes while it shouldn't be
-        actual_baudrate = uart_set_baudrate(uart, p_line_coding->bit_rate);
+    if (uart == UART_ESP32) {
+        if (p_line_coding->bit_rate == 4000000) return; // Ignore 4000000 baud
+        setup_esp32_uart(p_line_coding->bit_rate);
+        printf("ESP32 baudrate: %d\r\n", p_line_coding->bit_rate);
+    } else {
         uart_set_format(uart, data_bits, stop_bits, parity);
+        actual_baudrate = uart_set_baudrate(uart, p_line_coding->bit_rate);
+        printf("UART %u settings changed to %d baud (requested %d), %s parity, %d stop bits, %d data bits\r\n", itf, actual_baudrate, p_line_coding->bit_rate, (p_line_coding->parity == 2) ? "even" : (p_line_coding->parity == 1) ? "odd" : "no", p_line_coding->stop_bits + 1, p_line_coding->data_bits);
     }
-    
-    printf("UART %u settings changed to %d baud, %s parity, %d stop bits, %d data bits\r\n", itf, actual_baudrate, (p_line_coding->parity == 2) ? "even" : (p_line_coding->parity == 1) ? "odd" : "no", p_line_coding->stop_bits + 1, p_line_coding->data_bits);
 }
 
 void esp32_reset(bool download_mode) {
