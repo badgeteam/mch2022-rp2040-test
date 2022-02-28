@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <pico/multicore.h>
 #include "pico/stdlib.h"
 #include "bsp/board.h"
 #include "hardware/uart.h"
@@ -22,19 +23,17 @@ static absolute_time_t esp32_reset_timeout = 0;
 static bool esp32_wakeup_active = false;
 static absolute_time_t esp32_wakeup_timeout = 0;
 
-void setup_esp32_uart(uint baudrate) {
-    uart_init(UART_ESP32, baudrate);
-    uart_set_fifo_enabled(UART_ESP32, false);
-    gpio_set_function(UART_ESP32_TX_PIN, GPIO_FUNC_UART);
-    gpio_set_function(UART_ESP32_RX_PIN, GPIO_FUNC_UART);
-    irq_set_exclusive_handler(UART0_IRQ, on_esp32_uart_rx);
-    irq_set_enabled(UART0_IRQ, true);
-    uart_set_irq_enables(UART_ESP32, true, false);
-    uart_set_hw_flow(UART_ESP32, false, false);
-    uart_set_fifo_enabled(UART_ESP32, true);
-}
+cdc_line_coding_t current_line_coding[2];
+cdc_line_coding_t requested_line_coding[2];
+
+static mutex_t uart_mutex;
+
+bool ready = false;
 
 void setup_uart() {
+    
+    mutex_init(&uart_mutex);
+    
     gpio_init(ESP32_BL_PIN);
     gpio_set_dir(ESP32_BL_PIN, true);
     gpio_put(ESP32_BL_PIN, true);
@@ -46,14 +45,20 @@ void setup_uart() {
     gpio_init(ESP32_WK_PIN); // This is the PCA9555 interrupt line, do not set to output high!
     gpio_set_dir(ESP32_WK_PIN, false);
 
-    /*uart_init(UART_ESP32, 115200);
+    uart_init(UART_ESP32, 115200);
     gpio_set_function(UART_ESP32_TX_PIN, GPIO_FUNC_UART);
     gpio_set_function(UART_ESP32_RX_PIN, GPIO_FUNC_UART);
     irq_set_exclusive_handler(UART0_IRQ, on_esp32_uart_rx);
     irq_set_enabled(UART0_IRQ, true);
     uart_set_irq_enables(UART_ESP32, true, false);
-    uart_set_hw_flow(UART_ESP32, false, false);*/
-    setup_esp32_uart(115200);
+    uart_set_hw_flow(UART_ESP32, false, false);
+    uart_set_format(UART_ESP32, 8, 1, 0);
+    
+    current_line_coding[0].bit_rate = 115200;
+    current_line_coding[0].data_bits = 8;
+    current_line_coding[0].parity = 0;
+    current_line_coding[0].stop_bits = 1;
+    memcpy(&requested_line_coding[0], &current_line_coding[0], sizeof(cdc_line_coding_t));
 
     uart_init(UART_FPGA, 115200);
     gpio_set_function(UART_FPGA_TX_PIN, GPIO_FUNC_UART);
@@ -62,6 +67,15 @@ void setup_uart() {
     irq_set_enabled(UART1_IRQ, true);
     uart_set_irq_enables(UART_FPGA, true, false);
     uart_set_hw_flow(UART_FPGA, false, false);
+    uart_set_format(UART_FPGA, 8, 1, 0);
+
+    current_line_coding[1].bit_rate = 115200;
+    current_line_coding[1].data_bits = 8;
+    current_line_coding[1].parity = 0;
+    current_line_coding[1].stop_bits = 1;
+    memcpy(&requested_line_coding[1], &current_line_coding[1], sizeof(cdc_line_coding_t));
+    
+    ready = true;
 }
 
 void wake_up_esp32() {
@@ -78,6 +92,7 @@ void wake_up_esp32() {
 }*/
 
 void on_esp32_uart_rx() {
+    if (!ready) return;
     uint8_t buffer[64];
     uint32_t length = 0;
     while (uart_is_readable(UART_ESP32)) {
@@ -98,6 +113,7 @@ void on_esp32_uart_rx() {
 }
 
 void on_fpga_uart_rx() {
+    if (!ready) return;
     uint8_t buffer[64];
     uint32_t length = 0;
     while (uart_is_readable(UART_FPGA)) {
@@ -115,12 +131,18 @@ void on_fpga_uart_rx() {
 }
 
 void cdc_send(uint8_t itf, uint8_t* buf, uint32_t count) {
+    if (!ready) return;
     tud_cdc_n_write(itf, buf, count);
     tud_cdc_n_write_flush(itf);
 }
 
 void cdc_task(void) {
     uint8_t buffer[64];
+    
+    mutex_enter_blocking(&uart_mutex);
+    
+    apply_line_coding(0);
+    apply_line_coding(1);
     
     if (tud_cdc_n_available(USB_CDC_ESP32)) {
         uint32_t length = tud_cdc_n_read(USB_CDC_ESP32, buffer, sizeof(buffer));
@@ -158,55 +180,83 @@ void cdc_task(void) {
         esp32_wakeup_active = false;
         gpio_set_dir(ESP32_WK_PIN, false);
     }
+    
+    mutex_exit(&uart_mutex);
 }
 
-void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* p_line_coding) {
-    uart_inst_t* uart;
-    switch (itf) {
-        case USB_CDC_ESP32:
-            uart = UART_ESP32;
-            break;
-        case USB_CDC_FPGA:
-            uart = UART_FPGA;
-            break;
-        default:
-            return; // Other CDC interfaces are ignored
-    }
-
+uint calc_data_bits(uint requested) {
     uint data_bits;
-    switch (p_line_coding->data_bits) {
+    switch (requested) {
         case 5: data_bits = 5; break;
         case 6: data_bits = 6; break;
         case 7: data_bits = 7; break;
         case 8: data_bits = 8; break;
         case 16: default: data_bits = 8; break; // Not supported
     }
-    
+    return data_bits;
+}
+
+uint calc_stop_bits(uint requested) {
     uint stop_bits;
-    switch (p_line_coding->stop_bits) {
+    switch (requested) {
         case 0: stop_bits = 1; break; // 1 stop bit
         case 2: stop_bits = 2; break; // 2 stop bits
         case 1: default: stop_bits = 1; break; // 1.5 stop bits (not supported)
     }
-    
+    return stop_bits;
+}
+
+uint calc_parity(uint requested) {
     uart_parity_t parity;
-    switch (p_line_coding->parity) {
+    switch (requested) {
         case 0: parity = UART_PARITY_NONE; break;
         case 1: parity = UART_PARITY_ODD; break;
         case 2: parity = UART_PARITY_EVEN; break;
         case 3: case 4: default: parity = UART_PARITY_NONE; break; //3: mark, 4: space (not supported)
     }
-    
-    int actual_baudrate = 0;
+    return parity;
+}
 
-    if (uart == UART_ESP32) {
-        if (p_line_coding->bit_rate == 4000000) return; // Ignore 4000000 baud
-        setup_esp32_uart(p_line_coding->bit_rate);
-        printf("ESP32 baudrate: %d\r\n", p_line_coding->bit_rate);
+void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* new_line_coding) {
+    if (itf == USB_CDC_ESP32) {
+        memcpy(&requested_line_coding[0], new_line_coding, sizeof(cdc_line_coding_t));
+    }
+    if (itf == USB_CDC_FPGA) {
+        memcpy(&requested_line_coding[1], new_line_coding, sizeof(cdc_line_coding_t));
+    }
+}
+    
+void apply_line_coding(uint8_t itf) {  
+    uart_inst_t* uart;
+    if (itf == USB_CDC_ESP32) {
+        uart = UART_ESP32;
+    } else  if (itf == USB_CDC_FPGA) {
+        uart = UART_FPGA;
     } else {
-        uart_set_format(uart, data_bits, stop_bits, parity);
-        actual_baudrate = uart_set_baudrate(uart, p_line_coding->bit_rate);
-        printf("UART %u settings changed to %d baud (requested %d), %s parity, %d stop bits, %d data bits\r\n", itf, actual_baudrate, p_line_coding->bit_rate, (p_line_coding->parity == 2) ? "even" : (p_line_coding->parity == 1) ? "odd" : "no", p_line_coding->stop_bits + 1, p_line_coding->data_bits);
+        return;
+    }
+    
+    bool changed = false;
+    if (current_line_coding[itf].bit_rate != requested_line_coding[itf].bit_rate) {
+        int actual_baudrate = uart_set_baudrate(uart, requested_line_coding[itf].bit_rate);
+        printf("UART %u baudrate changed from %d to %d\r\n", itf, current_line_coding[itf].bit_rate, actual_baudrate);
+        changed = true;
+    }
+    
+    if ((current_line_coding[itf].data_bits != requested_line_coding[itf].data_bits) ||
+        (current_line_coding[itf].stop_bits != requested_line_coding[itf].stop_bits) ||
+        (current_line_coding[itf].parity != requested_line_coding[itf].parity)) {
+        uart_set_format(uart, calc_data_bits(
+            requested_line_coding[itf].data_bits),
+            calc_stop_bits(requested_line_coding[itf].stop_bits),
+            calc_parity(requested_line_coding[itf].parity)
+        );
+        printf("UART %u: %s parity, %d stop bits, %d data bits\r\n", itf, (requested_line_coding[itf].parity == 2) ? "even" : (requested_line_coding[itf].parity == 1) ? "odd" : "no", requested_line_coding[itf].stop_bits + 1, requested_line_coding[itf].data_bits);
+        changed = true;
+    }
+
+    if (changed) {
+        memcpy(&current_line_coding[itf], &requested_line_coding[itf], sizeof(cdc_line_coding_t));
     }
 }
 

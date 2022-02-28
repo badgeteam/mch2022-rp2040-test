@@ -87,6 +87,7 @@ target_link_libraries(${FIRMWARE}
     hardware_pio
     hardware_pwm
     hardware_adc
+    pico_multicore
     tinyusb_device
     tinyusb_board
     i2c_slave
