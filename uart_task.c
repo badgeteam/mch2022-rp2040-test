@@ -136,6 +136,73 @@ void cdc_send(uint8_t itf, uint8_t* buf, uint32_t count) {
     tud_cdc_n_write_flush(itf);
 }
 
+uint calc_data_bits(uint requested) {
+    uint data_bits;
+    switch (requested) {
+        case 5: data_bits = 5; break;
+        case 6: data_bits = 6; break;
+        case 7: data_bits = 7; break;
+        case 8: data_bits = 8; break;
+        case 16: default: data_bits = 8; break; // Not supported
+    }
+    return data_bits;
+}
+
+uint calc_stop_bits(uint requested) {
+    uint stop_bits;
+    switch (requested) {
+        case 0: stop_bits = 1; break; // 1 stop bit
+        case 2: stop_bits = 2; break; // 2 stop bits
+        case 1: default: stop_bits = 1; break; // 1.5 stop bits (not supported)
+    }
+    return stop_bits;
+}
+
+uint calc_parity(uint requested) {
+    uart_parity_t parity;
+    switch (requested) {
+        case 0: parity = UART_PARITY_NONE; break;
+        case 1: parity = UART_PARITY_ODD; break;
+        case 2: parity = UART_PARITY_EVEN; break;
+        case 3: case 4: default: parity = UART_PARITY_NONE; break; //3: mark, 4: space (not supported)
+    }
+    return parity;
+}
+
+void apply_line_coding(uint8_t itf) {  
+    uart_inst_t* uart;
+    if (itf == USB_CDC_ESP32) {
+        uart = UART_ESP32;
+    } else  if (itf == USB_CDC_FPGA) {
+        uart = UART_FPGA;
+    } else {
+        return;
+    }
+    
+    bool changed = false;
+    if (current_line_coding[itf].bit_rate != requested_line_coding[itf].bit_rate) {
+        int actual_baudrate = uart_set_baudrate(uart, requested_line_coding[itf].bit_rate);
+        printf("UART %u baudrate changed from %d to %d\r\n", itf, current_line_coding[itf].bit_rate, actual_baudrate);
+        changed = true;
+    }
+    
+    if ((current_line_coding[itf].data_bits != requested_line_coding[itf].data_bits) ||
+        (current_line_coding[itf].stop_bits != requested_line_coding[itf].stop_bits) ||
+        (current_line_coding[itf].parity != requested_line_coding[itf].parity)) {
+        uart_set_format(uart, calc_data_bits(
+            requested_line_coding[itf].data_bits),
+            calc_stop_bits(requested_line_coding[itf].stop_bits),
+            calc_parity(requested_line_coding[itf].parity)
+        );
+        printf("UART %u: %s parity, %d stop bits, %d data bits\r\n", itf, (requested_line_coding[itf].parity == 2) ? "even" : (requested_line_coding[itf].parity == 1) ? "odd" : "no", requested_line_coding[itf].stop_bits + 1, requested_line_coding[itf].data_bits);
+        changed = true;
+    }
+
+    if (changed) {
+        memcpy(&current_line_coding[itf], &requested_line_coding[itf], sizeof(cdc_line_coding_t));
+    }
+}
+
 void cdc_task(void) {
     uint8_t buffer[64];
     
@@ -184,79 +251,12 @@ void cdc_task(void) {
     mutex_exit(&uart_mutex);
 }
 
-uint calc_data_bits(uint requested) {
-    uint data_bits;
-    switch (requested) {
-        case 5: data_bits = 5; break;
-        case 6: data_bits = 6; break;
-        case 7: data_bits = 7; break;
-        case 8: data_bits = 8; break;
-        case 16: default: data_bits = 8; break; // Not supported
-    }
-    return data_bits;
-}
-
-uint calc_stop_bits(uint requested) {
-    uint stop_bits;
-    switch (requested) {
-        case 0: stop_bits = 1; break; // 1 stop bit
-        case 2: stop_bits = 2; break; // 2 stop bits
-        case 1: default: stop_bits = 1; break; // 1.5 stop bits (not supported)
-    }
-    return stop_bits;
-}
-
-uint calc_parity(uint requested) {
-    uart_parity_t parity;
-    switch (requested) {
-        case 0: parity = UART_PARITY_NONE; break;
-        case 1: parity = UART_PARITY_ODD; break;
-        case 2: parity = UART_PARITY_EVEN; break;
-        case 3: case 4: default: parity = UART_PARITY_NONE; break; //3: mark, 4: space (not supported)
-    }
-    return parity;
-}
-
 void tud_cdc_line_coding_cb(uint8_t itf, cdc_line_coding_t const* new_line_coding) {
     if (itf == USB_CDC_ESP32) {
         memcpy(&requested_line_coding[0], new_line_coding, sizeof(cdc_line_coding_t));
     }
     if (itf == USB_CDC_FPGA) {
         memcpy(&requested_line_coding[1], new_line_coding, sizeof(cdc_line_coding_t));
-    }
-}
-    
-void apply_line_coding(uint8_t itf) {  
-    uart_inst_t* uart;
-    if (itf == USB_CDC_ESP32) {
-        uart = UART_ESP32;
-    } else  if (itf == USB_CDC_FPGA) {
-        uart = UART_FPGA;
-    } else {
-        return;
-    }
-    
-    bool changed = false;
-    if (current_line_coding[itf].bit_rate != requested_line_coding[itf].bit_rate) {
-        int actual_baudrate = uart_set_baudrate(uart, requested_line_coding[itf].bit_rate);
-        printf("UART %u baudrate changed from %d to %d\r\n", itf, current_line_coding[itf].bit_rate, actual_baudrate);
-        changed = true;
-    }
-    
-    if ((current_line_coding[itf].data_bits != requested_line_coding[itf].data_bits) ||
-        (current_line_coding[itf].stop_bits != requested_line_coding[itf].stop_bits) ||
-        (current_line_coding[itf].parity != requested_line_coding[itf].parity)) {
-        uart_set_format(uart, calc_data_bits(
-            requested_line_coding[itf].data_bits),
-            calc_stop_bits(requested_line_coding[itf].stop_bits),
-            calc_parity(requested_line_coding[itf].parity)
-        );
-        printf("UART %u: %s parity, %d stop bits, %d data bits\r\n", itf, (requested_line_coding[itf].parity == 2) ? "even" : (requested_line_coding[itf].parity == 1) ? "odd" : "no", requested_line_coding[itf].stop_bits + 1, requested_line_coding[itf].data_bits);
-        changed = true;
-    }
-
-    if (changed) {
-        memcpy(&current_line_coding[itf], &requested_line_coding[itf], sizeof(cdc_line_coding_t));
     }
 }
 
